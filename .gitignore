@@ -39,3 +39,6 @@ override.tf.json
 terraform.rc
 
 # end https://github.com/github/gitignore/blob/main/Terraform.gitignore
+
+# Terraform dependency lock file
+.terraform.lock.hcl
