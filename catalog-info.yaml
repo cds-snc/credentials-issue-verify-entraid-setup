@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: credentials-issue-verify-entraid-setup
+  description: null
+  labels:
+    license: MIT
+spec:
+  type: website
+  lifecycle: experimental
+  owner: digital-credentials-issue-verify
