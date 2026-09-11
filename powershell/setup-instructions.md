@@ -1,19 +1,58 @@
-## Prerequisites
+## Entra ID Provisioning Guide: GCIV Affiniti Quest Teams
+This script automates the creation and configuration of Microsoft Entra ID security groups, nested group architectures, app role assignments, and Microsoft Graph API permissions required for the GCIV Affiniti Quest service.
 
-**PowerShell:** Version 7.0 or higher is recommended for Microsoft Graph compatibility.
+## 📋 Prerequisites
+Before executing the script, ensure your local environment and identity meet the following requirements:
+* **PowerShell:** Version 7.0 or higher is recommended for Microsoft Graph compatibility.
+* **Entra ID Permissions:** Your account requires the following privileged administrative roles:
+    * *Group Administrator* (to create, delete, and nest security groups).
+    * *Application Administrator* or *Cloud Application Administrator* (to grant API permissions and assign app roles).
 
-**Permissions:** You need *Groups Administrator* or *Application Administrator* rights in your Azure/Entra ID tenant.
+## 🛠️ What the Script Does
+   1. Creates a global root group for the target environment if it does not already exist: GCIV-AffinitiQuest-$ENV-Users.
+   2. Provisions team parent groups for every team specified, then nests them cleanly inside the root environment group.
+   3. Enforces an audit safety check ensuring newly targeted team names do not already contain existing, unexpected user memberships.
+   4. Instantiates a Service Principal for your Application ID if one does not yet exist.
+   5. Grants administrative Microsoft Graph API scopes required by the service application.
+   6. Generates and links precise Role Groups (Marketer, Manager, Admin) for each team, mapping the matching Entra App Roles to those groups.
 
-**Required Data:** Have your *Environment Name*, *Azure Application ID*, and *Tenant ID* ready.
+## 🛑 Automated Error Rollback
+The script features an intelligent fail-safe routine. If any command fails, or if execution is manually interrupted:
+* A trap intercepts the failure.
+* The script reads a runtime history stack of created resources.
+* It deletes all newly created groups in reverse chronological order.
+* Your tenant is left completely clean, preventing partial, orphaned configurations.
 
-## Setup Steps
-    1. Open PowerShell: Run your PowerShell console as an Administrator.
-    2. Set Execution Policy to ensure your system allows script execution by running:
-        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
-## Execution Instructions
-    1. Navigate to setup script folder and execute it:
-        .\setup.ps1
-    2. Provide Environment: Type your target environment name (e.g., dev) when prompted and press Enter.
-    3. Provide App ID: Paste your Azure Application ID and press Enter.
-    4. Provide Tenant ID: Paste your Azure Tenant ID and press Enter.
-    5. Authenticating: If prompted by the Microsoft.Graph module later in the script, follow the on-screen instructions to log into your Azure account via the web browser.
+## 🚀 Execution Instructions
+1. Run your PowerShell console as an Administrator.
+2. Set Execution Policy to ensure your system allows script execution by running:
+
+    ```Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force```
+3. Navigate to setup script folder and execute it:
+
+    ```\.setup.sh```
+
+### Provide Interactive Inputs
+The script will pause to ask you for three vital parameters.
+| Input Prompt | Example Entry | Description |
+|---|---|---|
+| Application ID | a1b2c3d4-e5f6-... | The Client/Application ID of the target App Registration provided by CDS. |
+| Environment Name | Dev (or Staging, Prod) | Determines the naming convention and environment tracking context. |
+| Tenant ID | a1b2c3d4-e5f6-... | Your Azure Tenant ID |
+
+The script will install a few required packages then pause and ask you for one or more team names (For naming and validation purposes.)
+| Input Prompt | Example Entry | Description |
+|---|---|---|
+| Team Name(s) | Alpha Bravo Charlie | Space-separated list of individual team names using the service. |
+
+### Authenticate
+If prompted by the Microsoft.Graph module later in the script, follow the on-screen instructions to log into your Azure account via the web browser.
+
+## 🗂️ Architecture Created
+The script generates a multi-layered nested hierarchy. Given an environment of 'Dev' and a team named 'Sales', the structural outcome will look like this:
+
+* GCIV-AffinitiQuest-Dev-Users (Global Root Environment Group)
+  * GCIV-AffinitiQuest-Dev-Sales (Team Parent Group)
+    * GCIV-AffinitiQuest-Dev-Sales-Marketer (Group assigned 'Marketer' App Role)
+    * GCIV-AffinitiQuest-Dev-Sales-Manager  (Group assigned 'Manager' App Role)
+    * GCIV-AffinitiQuest-Dev-Sales-Admin    (Group assigned 'Admin' App Role)

@@ -34,12 +34,12 @@ The script features an intelligent fail-safe routine. If any command fails, or i
 ## 1. Download and Prepare the Script
 Save the script content to a local file, navigate to its directory, and make it executable:
 
-chmod +x setup.sh
+```chmod +x setup.sh```
 
 ## 2. Execute the Automation
 Run the script directly from your terminal:
 
-./setup.sh
+```./setup.sh```
 
 ## 3. Provide Interactive Inputs
 The script will pause to ask you for three vital parameters.

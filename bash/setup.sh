@@ -1,10 +1,5 @@
 #!/bin/bash
 
-#*** PREREQUISITES ***
-#To run this successfully without triggering the rollback, you must:
-	#1. Have the Azure CLI installed and be logged in
-	#2. Have sufficient Entra ID permissions (like Group Administrator and Application Administrator).
-
 # Exit immediately if a pipeline returns a non-zero status, and track errors in functions/traps
 set -Eeuo pipefail
 
