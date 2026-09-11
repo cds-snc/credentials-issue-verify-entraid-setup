@@ -61,7 +61,7 @@ function Invoke-EmergencyRollback {
         }
     }
 
-    Write-Host "⛔ Tenant state successfully reset to original conditions. Exiting script safely." -ForegroundColor Green
+    Write-Host "⛔ Tenant state successfully reset to original conditions. Exiting script safely." -ForegroundColor Red
 }
 
 # Connect to Azure account and required MSGraph scopes
@@ -77,6 +77,48 @@ try {
     Write-Error "Authentication failed: $_"
     exit
 }
+
+# Prompt for teams early to support the pre-flight group verification stage
+$teamsInput = ""
+while ([string]::IsNullOrWhiteSpace($teamsInput)) {
+    $teamsInput = Read-Host -Prompt "Enter at least one team name, or more separated by commas (e.g., team1, team2)"
+}
+$TEAMS_ARRAY = $teamsInput -split ',' | ForEach-Object { $_.Trim() }
+$TEAMS = [System.Collections.Generic.HashSet[string]]@($TEAMS_ARRAY)
+
+$SECURITY_GROUP_PREFIX = "GCIV-AffinitiQuest"
+$AQ_ROLES = 'Marketer', 'Manager', 'Admin'
+
+# === PHASE 1: PRE-FLIGHT DUPLICATE GROUP VERIFICATION ===
+
+Write-Host "Running pre-flight checks for group naming collisions..." -ForegroundColor Cyan
+$GroupsToValidate = [System.Collections.Generic.List[string]]::new()
+$GroupsToValidate.Add("$SECURITY_GROUP_PREFIX-$ENV-Users")
+
+foreach ($TEAM in $TEAMS) {
+    $GroupsToValidate.Add("$SECURITY_GROUP_PREFIX-$ENV-$TEAM")
+    foreach ($ROLE in $AQ_ROLES) {
+        $GroupsToValidate.Add("$SECURITY_GROUP_PREFIX-$ENV-$TEAM-$ROLE")
+    }
+}
+
+$CollisionsFound = $false
+foreach ($GroupName in $GroupsToValidate) {
+    $ExistingGroup = Get-MgGroup -Filter "displayName eq '$GroupName'" -ErrorAction SilentlyContinue
+    if ($ExistingGroup) {
+        Write-Error "Naming Collision Detected: A group named '$GroupName' already exists in this tenant (ID: $($ExistingGroup.Id))."
+        $CollisionsFound = $true
+    }
+}
+
+if ($CollisionsFound) {
+    Write-Error "Pre-flight checks failed. Halting setup to prevent overwriting existing structures."
+    exit
+}
+Write-Host "Pre-flight checks passed! No naming collisions found. Proceeding..." -ForegroundColor Green
+
+
+# === PHASE 2: INFRASTRUCTURE DEPLOYMENT ===
 
 # Create service principal using $APP_ID
 try {
