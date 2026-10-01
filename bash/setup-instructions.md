@@ -47,8 +47,8 @@ The script features an intelligent fail-safe routine. If any command fails, or i
 Create or modify an environment file (e.g., dev.env, prod.env) in the root directory. Ensure all entries use valid structural configurations:
 ```
 APP_ID="00000000-0000-0000-0000-000000000000"  # Multi-tenant App ID from CDS
-ENV="Dev"                                      # Environment identifier
-TEAMS=("Team1" "Team2" "Team3")                # Array of internal team names
+ENV="Dev"                                      # Environment identifier (e.g., Dev, Test, Prod)
+TEAMS=("Team1" "Team2" "Team3")                # Array of internal team names to create security groups for.
 ```
 
 ### 2. Prepare the Scripts
@@ -77,11 +77,10 @@ GCIV-AffinitiQuest-Dev-Users                      <- (Global Environment Root Gr
 ```
 
 ## 🗑️  Environment Teardown and Resource Purge
-When an entire environment tier needs to be decommissioned or reset, run the teardown script with the corresponding configuration file.
+> ⚠️ **Critical: Target Decommissioning Risk**  
+> Running the teardown script permanently deletes all scoped Entra ID security groups and app entitlements for the targeted environment. When executed, you must type the **exact filename of your configuration file** (e.g., `dev.env` or `prod.env`) at the interactive prompt to authorize the teardown.
 
-
-### ⚠️ Warning: This will permanently delete the scoped Entra ID security groups for the targeted environment.
-Running the script permanently deletes all scoped Entra ID security groups and app entitlements for the targeted environment. When executed, you must type the exact configuration filename (e.g., dev.env) at the interactive prompt to authorize the teardown.
+To permanently delete all deployed security groups and strip away all application role mappings for a given environment, execute the teardown script:
 
 ```
 ./teardown_architecture.sh dev.env

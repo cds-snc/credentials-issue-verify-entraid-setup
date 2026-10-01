@@ -4,6 +4,6 @@
 @{
     APP_ID      = "00000000-0000-0000-0000-000000000000" # ID of the multi-tenant app provided by CDS
     TENANT_ID   = "00000000-0000-0000-0000-000000000000" # Target Azure AD Tenant ID
-    ENV         = "Dev"                                  # Tier identifier (dev, test, prod)
-    TEAMS       = @("Team1", "Team2", "Team3")           # Native array definition of groups
+    ENV         = "Dev"                                  # Environment identifier (e.g., Dev, Test, Prod)
+    TEAMS       = @("Team1", "Team2", "Team3")           # Array of internal team names to create security groups for.
 }
