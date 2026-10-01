@@ -3,7 +3,15 @@
 # Exit immediately if a pipeline returns a non-zero status, and track errors in functions/traps
 set -Eeuo pipefail
 
-# Set required environment variables
+# ==========================================
+#         SCRIPT CONFIGURATION
+# ==========================================
+# Replace these placeholder values with your static configurations
+APP_ID="00000000-0000-0000-0000-000000000000" #ID of the multi-tenant application provided by CDS
+ENV="dev" #Environment name (e.g., dev, test, prod)
+TEAMS=("team1" "team2" "team3") #Array of internal teams to create security groups for. Add as many as needed.
+
+# Microsoft Graph Constants
 MS_GRAPH_ID=00000003-0000-0000-c000-000000000000
 SECURITY_GROUP_PREFIX=GCIV-AffinitiQuest
 DESCRIPTION="Group containing security groups for each team using the GCIV Affiniti Quest service"
@@ -12,10 +20,12 @@ AQ_ROLES=(
 	"Manager"
 	"Admin"
 )
+
+#Required Microsoft Graph API permissions for the service principal to function correctly.
 CLAIM_IDS=(
-   37f7f235-527c-4136-accd-4a02d197296e
-   14dad69e-099b-42c9-810b-d002981feec1
-   e1fe6dd8-ba31-4d61-89e7-88639da4683d
+   37f7f235-527c-4136-accd-4a02d197296e #openid (Allows users to sign in to the app with their work accounts).
+   14dad69e-099b-42c9-810b-d002981feec1 #profile (Allows the app to read basic user profile information like name and photo).
+   e1fe6dd8-ba31-4d61-89e7-88639da4683d #User.Read (Allows the user to sign in and lets the app read the profile of the signed-in user).
 )
 
 # Rollback Array - Keeps track of all Group IDs created during this execution
@@ -46,39 +56,44 @@ cleanup_on_failure() {
 # Register the cleanup function to trigger on ERR (command failure), SIGINT (Ctrl+C), and SIGTERM (Termination)
 trap cleanup_on_failure ERR SIGINT SIGTERM
 
-# Capture required inputs from user
-while true; do
-    read -p "Enter Application ID (provided by CDS): " APP_ID
-    if [ -z "$APP_ID" ]; then
-        echo "Application ID cannot be empty. Try again."
-        continue
-    fi
-    read -p "Enter Environment Name (e.g., dev, staging, prod): " ENV
-    if [ -z "$ENV" ]; then
-        echo "Environment name cannot be empty. Try again."
-        continue
-    fi
-    read -p "Enter name(s) of team(s) using the service (e.g., team1 team2): " -a TEAMS
-    if [ ${#TEAMS[@]} -eq 0 ]; then
-        echo "At least one team name is required. Try again."
-        continue
-    fi
-    break
-done
-echo "Inputs received, proceeding..."
-
-echo "🔍 Performing pre-flight check: Verifying App Registration exists..."
-# Turn off immediate exit temporary to check the command result status manually
-set +e
-APP_EXISTS=$(az ad app show --id "$APP_ID" --query "id" -o tsv 2>/dev/null)
-set -e
-
-if [ -z "$APP_EXISTS" ]; then
-    echo "❌ Error: The provided Application ID could not be found in this Azure tenant." >&2
-    echo "Please ensure the App Registration exists and your Azure CLI is logged into the correct tenant." >&2
+# --- PRE-FLIGHT VALIDATION OF CONFIGURATION VARIABLES ---
+if [ -z "${APP_ID:-}" ]; then
+    echo "❌ Error: APP_ID configuration variable cannot be empty." >&2
     exit 1
 fi
-echo "✅ App Registration verified successfully."
+if [ -z "${ENV:-}" ]; then
+    echo "❌ Error: ENV configuration variable cannot be empty." >&2
+    exit 1
+fi
+if [ ${#TEAMS[@]} -eq 0 ]; then
+    echo "❌ Error: TEAMS array configuration cannot be empty. Add at least one team." >&2
+    exit 1
+fi
+
+echo "🔍 Configurations validated. Proceeding..."
+echo "Application ID: $APP_ID"
+echo "Environment:    $ENV"
+echo "Teams targeted: ${TEAMS[*]}"
+
+echo -e "\n🔍 Performing pre-flight check: Verifying Service Principal exists..."
+# Turn off immediate exit temporary to check the command result status manually
+set +e
+SPN_ID=$(az ad sp show --id "$APP_ID" --query "id" -o tsv 2>/dev/null)
+set -e
+
+if [ -z "$SPN_ID" ]; then
+    echo "ℹ️ Service Principal not found. Attempting to instantiate the multi-tenant app in this tenant..."
+    set +e
+    SPN_ID=$(az ad sp create --id "$APP_ID" --query "id" -o tsv 2>/dev/null)
+    set -e
+    
+    if [ -z "$SPN_ID" ]; then
+        echo "❌ Error: The provided Application ID could not be found, and a Service Principal could not be created." >&2
+        echo "Please ensure the external multi-tenant app has been granted admin consent in this tenant." >&2
+        exit 1
+    fi
+fi
+echo "✅ Service Principal verified successfully (Object ID: $SPN_ID)."
 
 # Turn $TEAMS array into a set to ensure each value is unique
 TEAMS_SET=($(for v in "${TEAMS[@]}"; do echo "$v"; done | sort -u))
@@ -143,11 +158,7 @@ for TEAM in "${TEAMS_SET[@]}"; do
 done
 echo "✅ Security groups successfully configured for each team. Proceeding..." 
 
-echo "Creating service principal using provided APP_ID..."
-SPN_ID=$(az ad sp create --id "$APP_ID" --query "appId" -o tsv)
-echo "✅ Done."
-
-echo "Granting Microsoft Graph Permissions to App Registration..."
+echo "Granting Microsoft Graph Permissions to Service Principal..."
 az ad app permission grant --id "$SPN_ID" --api "$MS_GRAPH_ID" --scope "${CLAIM_IDS[@]}"
 echo "✅ Done."
 
@@ -169,8 +180,13 @@ for TEAM in "${TEAMS_SET[@]}"; do
 						CREATED_GROUPS+=("$ROLE_GROUP_ID")
         echo "✅ Done."
 
-        # Getting corresponding App Role ID for current $ROLE
-        APP_ROLE_ID=$(az ad app show --id "$APP_ID" --query "appRoles[?displayName == '$ROLE'].id" -o tsv)
+        # Extract the App Role ID directly from the local Service Principal object
+        APP_ROLE_ID=$(az ad sp show --id "$APP_ID" --query "appRoles[?displayName == '$ROLE'].id" -o tsv)
+
+        if [ -z "$APP_ROLE_ID" ]; then
+            echo "❌ Error: App Role '$ROLE' could not be found on the multi-tenant application." >&2
+            exit 1
+        fi
 
         # Assign corresponding app role to the group that we just created
         echo "Assigning $ROLE app role to $ROLE_GROUP_NAME group..."
