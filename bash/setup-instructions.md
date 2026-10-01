@@ -1,24 +1,27 @@
 ## Entra ID Provisioning Guide: GCIV Affiniti Quest Teams
-This script automates the creation and configuration of Microsoft Entra ID security groups, nested group architectures, app role assignments, and Microsoft Graph API permissions required for the GCIV Affiniti Quest service.
+This automation package streamlines the onboarding of corporate teams onto the GCIV Affiniti Quest service by managing:
+
+* Local Instantiation: Deploys the multi-tenant GCIV App Registration (Service Principal) to the local tenant.
+* Group Topologies: Creates and configures the required Microsoft Entra ID security groups.
+* Role Assignments: Links these security groups to their corresponding custom App Roles.
+
 ## 📋 Prerequisites
-Before executing the script, ensure your local environment and identity meet the following requirements:
+Before executing the pipeline, ensure your local environment and deployment identity meet the following requirements:
 
 * Azure CLI: Must be installed and updated (az --version).
 * Active Session: You must be actively logged into the correct tenant using az login.
-* Entra ID Permissions: Your account requires the following privileged administrative roles:
+* Entra ID Privileges: Your deployment account requires the following administrative directory roles:
     * Group Administrator (to create, delete, and nest security groups).
     * Application Administrator or Cloud Application Administrator (to grant API permissions and assign app roles).
 
 ------------------------------
-## 🛠️ What the Script Does
+## 🛠️ What the Automation Does
 
-   1. Validates the existence of your target App Registration via the provided Application ID.
-   2. Creates a global root group for the target environment if it does not already exist: GCIV-AffinitiQuest-$ENV-Users.
-   3. Provisions team parent groups for every team specified, then nests them cleanly inside the root environment group.
-   4. Enforces an audit safety check ensuring newly targeted team names do not already contain existing, unexpected user memberships.
-   5. Instantiates a Service Principal for your Application ID if one does not yet exist.
-   6. Grants administrative Microsoft Graph API scopes required by the service application.
-   7. Generates and links precise Role Groups (Marketer, Manager, Admin) for each team, mapping the matching Entra App Roles to those groups.
+  1. Maps out the intended architecture matrix and checks the live directory for naming collisions. If any group exists, it blocks execution to protect production states.
+  2. Creates a global root group for the target environment if it does not already exist: GCIV-AffinitiQuest-$ENV-Users.
+  3. Creates distinct parent structural groups for every team specified, then nests them dynamically within the global environment root group.
+  4. Instantiates a local service principal from the provided multi-tenant application, if one does not yet exist.
+  5. Generates functional role groups (Marketer, Manager, Admin) under each team branch, extracts the true role UUIDs from the multi-tenantapplication manifest, and assigns them to the groups.
 
 ------------------------------
 ## 🛑 Automated Error Rollback
@@ -31,34 +34,35 @@ The script features an intelligent fail-safe routine. If any command fails, or i
 
 ------------------------------
 ## 🚀 Execution Instructions
-## 1. Download and Prepare the Script
-Save the script content to a local file, navigate to its directory, and make it executable:
+### 1. Configure Your Environment File
+Create or modify an environment file (e.g., dev.env, prod.env) in the root directory. Ensure all entries use valid structural configurations:
+```
+APP_ID="00000000-0000-0000-0000-000000000000"  # Multi-tenant App ID from CDS
+ENV="Dev"                                      # Environment identifier
+TEAMS=("Team1" "Team2" "Team3")                # Array of internal team names
+```
 
-```chmod +x setup.sh```
+### 2. Prepare the Scripts
+Navigate to your working directory and mark the execution package as executable:
 
-## 2. Execute the Automation
-Run the script directly from your terminal:
+```chmod +x deploy_setup.sh validate_deployment.sh```
 
-```./setup.sh```
+### 3. Run the Provisioning and Validation Pipeline
+Execute the deployment script followed immediately by the validator script by passing your target configuration file as the first command-line argument.<br>
+Using terminal chaining (&&) ensures the validation audit only runs if the initial setup succeeds:
 
-## 3. Provide Interactive Inputs
-The script will pause to ask you for three vital parameters.
-
-| Input Prompt | Example Entry | Description |
-|---|---|---|
-| Application ID | a1b2c3d4-e5f6-... | The Client/Application ID of the target App Registration provided by CDS. |
-| Environment Name | Dev (or Staging, Prod) | Determines the naming convention and environment tracking context. |
-| Team Name(s) | Alpha Bravo Charlie | Space-separated list of individual team names using the service. |
-
+```
+./deploy_setup.sh dev.env && ./validate_deployment.sh dev.env
+```
 ------------------------------
 ## 🗂️ Architecture Created
 The script generates a multi-layered nested hierarchy. Given an environment of 'Dev' and a team named 'Sales', the structural outcome will look like this:
 
-* GCIV-AffinitiQuest-Dev-Users (Global Root Environment Group)
-  * GCIV-AffinitiQuest-Dev-Sales (Team Parent Group)
-    * GCIV-AffinitiQuest-Dev-Sales-Marketer (Group assigned 'Marketer' App Role)
-    * GCIV-AffinitiQuest-Dev-Sales-Manager  (Group assigned 'Manager' App Role)
-    * GCIV-AffinitiQuest-Sev-Sales-Admin    (Group assigned 'Admin' App Role)
-
-
+```text 
+GCIV-AffinitiQuest-Dev-Users                      <- (Global Environment Root Group)
+  └── GCIV-AffinitiQuest-Dev-Sales                <- (Team Parent Group)
+        ├── GCIV-AffinitiQuest-Dev-Sales-Marketer <- (Assigned App Role: "Marketer")
+        ├── GCIV-AffinitiQuest-Dev-Sales-Manager  <- (Assigned App Role: "Manager")
+        └── GCIV-AffinitiQuest-Dev-Sales-Admin    <- (Assigned App Role: "Admin")
+```
 
