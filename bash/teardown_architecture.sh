@@ -16,6 +16,9 @@ load_environment_config() {
     
     echo "📂 Loading environment variables from: $env_file"
     source "$env_file"
+
+    # Store the exact path/filename globally for verification logic
+    ACTIVE_ENV_FILE="$env_file"
 }
 
 # --- DEPENDENCY VERIFICATION ---
@@ -51,6 +54,23 @@ echo "Application ID: $APP_ID"
 echo "Environment:    $ENV"
 echo "Teams targeted: ${TEAMS[*]}"
 
+# --- MANDATORY INTERACTIVE DELETION PROMPT ---
+
+EXPECTED_CONFIRMATION=$(basename "$ACTIVE_ENV_FILE")
+echo -e "\n⚠️  🛑  🚨 WARNING: RESOURCE DESTRUCTION RISK 🚨  🛑  ⚠️"
+echo "You are running a teardown operation that will permanently delete all '$ENV' security groups and App Role mappings!"
+echo -n "To confirm this action, please type the exact configuration filename '$EXPECTED_CONFIRMATION': "
+
+# Read user input directly from the controlling terminal interface
+read -r CONFIRMATION < /dev/tty
+
+if [ "$CONFIRMATION" != "$EXPECTED_CONFIRMATION" ]; then
+    echo "❌ Destruction aborted. Input mismatch (Expected: '$EXPECTED_CONFIRMATION', Received: '$CONFIRMATION')." >&2
+    echo "No resources were changed."
+    exit 1
+fi
+echo "✅ Confirmation verified. Initiating destruction phase..."
+
 # Resolve Service Principal Object ID
 set +e
 SPN_ID=$(az ad sp show --id "$APP_ID" --query "id" -o tsv 2>/dev/null)
@@ -68,6 +88,7 @@ else
 fi
 
 TEAMS_SET=($(for v in "${TEAMS[@]}"; do echo "$v"; done | sort -u))
+
 
 # --- DESTRUCTION PHASE ---
 
