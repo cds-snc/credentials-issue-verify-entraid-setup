@@ -19,7 +19,7 @@ load_environment_config() {
 }
 
 # Invoke loader using passed argument
-load_environment_config "${1:-}"
+load_environment_config "${1:-dev.env}"
 
 # Architecture Constants
 SECURITY_GROUP_PREFIX=GCIV-AffinitiQuest
